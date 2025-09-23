@@ -301,6 +301,7 @@ void FCarlaServer::FPimpl::BindActions()
   {
     TRACE_CPUPROFILER_EVENT_SCOPE(TickCueReceived);
     auto Current = FCarlaEngine::GetFrameCounter();
+    FCarlaEngine::FlushBuffer();
     (void)TickCuesReceived.fetch_add(1, std::memory_order_release);
     return Current + 1;
   };

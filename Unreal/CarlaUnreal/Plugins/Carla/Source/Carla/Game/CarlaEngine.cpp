@@ -33,6 +33,11 @@
 
 #include <thread>
 
+#include "RHI.h"
+#include "RHICommandList.h"
+#include "RHIDefinitions.h"
+#include "Tasks/Task.h"
+
 // =============================================================================
 // -- Static local methods -----------------------------------------------------
 // =============================================================================
@@ -417,4 +422,32 @@ void FCarlaEngine::OnEpisodeSettingsChanged(const FEpisodeSettings &Settings)
 void FCarlaEngine::ResetSimulationState()
 {
   bMapChanged = false;
+}
+
+void FCarlaEngine::FlushBuffer()
+{
+  // Forces the GPU to finish all pending commands. Can be used to mitigate
+  // certain memory leaks in the Vulkan RHI by forcing the release of
+  // temporary buffers. This is a blocking call and will cause a small hitch.
+  const float MemoryUsageThreshold = 0.0f;
+  UE::Tasks::FTask Task = UE::Tasks::Launch(UE_SOURCE_LOCATION,
+    [MemoryUsageThreshold]()
+    {
+      FTextureMemoryStats Stats;
+      RHIGetTextureMemoryStats(Stats);
+      const float AvailableVRAM = static_cast<float>(Stats.ComputeAvailableMemorySize());
+      const float BudgetVRAM = static_cast<float>(Stats.DedicatedVideoMemory);
+      if (BudgetVRAM > 0)
+      {
+        const float UsagePercentage = (1.0f - AvailableVRAM / BudgetVRAM) * 100.0f;
+        if (UsagePercentage > MemoryUsageThreshold)
+        {
+          FlushRenderingCommands();
+          UE_LOG(LogCarla, Log, TEXT("FlushBuffer Stats VRAM %.3f%% frame %d."), UsagePercentage, FCarlaEngine::FrameCounter);
+        }
+      }
+    },
+    UE::Tasks::ETaskPriority::Normal,
+    UE::Tasks::EExtendedTaskPriority::GameThreadNormalPri);
+  Task.Wait();
 }

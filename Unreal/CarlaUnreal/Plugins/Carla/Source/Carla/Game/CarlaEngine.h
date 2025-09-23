@@ -97,6 +97,8 @@ public:
     return SecondaryServer;
   }
 
+  static void FlushBuffer();
+
 private:
 
   void OnPreTick(UWorld *World, ELevelTick TickType, float DeltaSeconds);
